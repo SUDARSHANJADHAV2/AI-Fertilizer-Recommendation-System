@@ -5,7 +5,11 @@ from sklearn.preprocessing import LabelEncoder
 import pickle
 
 # 1️⃣ Load dataset
-df = pd.read_csv("Fertilizer_recommendation.csv")
+try:
+    df = pd.read_csv("fertilizer_recommendation_dataset.csv")
+except FileNotFoundError:
+    print("❌ Error: fertilizer_recommendation_dataset.csv not found!")
+    exit(1)
 
 # 2️⃣ Encode categorical columns
 le_soil = LabelEncoder()

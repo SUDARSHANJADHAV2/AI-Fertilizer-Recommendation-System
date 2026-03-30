@@ -2,530 +2,262 @@ import streamlit as st
 import pickle
 import numpy as np
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import os
 from datetime import datetime
 
-# Page config
+# ==============================================================================
+# PAGE CONFIGURATION
+# ==============================================================================
 st.set_page_config(
-    page_title="🌾 KrushiAI - Smart Fertilizer Recommendation",
+    page_title="KrushiAI - Smart Fertilizer Recommendation",
     page_icon="🌾",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Dark mode CSS styling
+# ==============================================================================
+# CSS STYLING
+# ==============================================================================
 st.markdown("""
 <style>
-    /* Import Google Fonts */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
     
-    /* Main app styling */
     .stApp {
-        background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 100%);
-        color: #ffffff;
         font-family: 'Inter', sans-serif;
     }
     
-    /* Header styling */
     .main-header {
-        background: linear-gradient(90deg, #2E7D32 0%, #388E3C 50%, #4CAF50 100%);
+        background: linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%);
         padding: 2rem;
-        border-radius: 15px;
+        border-radius: 12px;
         text-align: center;
         margin-bottom: 2rem;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: white;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     }
     
     .main-title {
-        font-size: 3rem;
+        font-size: 2.8rem;
         font-weight: 700;
-        color: #ffffff;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         margin-bottom: 0.5rem;
     }
     
     .main-subtitle {
-        font-size: 1.2rem;
-        color: #E8F5E8;
-        font-weight: 300;
-    }
-    
-    /* Sidebar styling */
-    .css-1d391kg {
-        background: linear-gradient(180deg, #1a1a1a 0%, #2d2d2d 100%);
-    }
-    
-    /* Input styling */
-    .stSelectbox > div > div {
-        background-color: #2d2d2d;
-        border: 1px solid #4CAF50;
-        border-radius: 8px;
-    }
-    
-    .stNumberInput > div > div > input {
-        background-color: #2d2d2d;
-        border: 1px solid #4CAF50;
-        border-radius: 8px;
-        color: #ffffff;
-    }
-    
-    /* Button styling */
-    .stButton > button {
-        background: linear-gradient(45deg, #4CAF50 0%, #45a049 100%);
-        color: white;
-        border: none;
-        border-radius: 25px;
-        padding: 0.75rem 2rem;
-        font-weight: 600;
         font-size: 1.1rem;
+        font-weight: 300;
+        opacity: 0.9;
+    }
+    
+    /* Button custom hover */
+    .stButton > button {
         transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        border-radius: 8px;
+        font-weight: 600;
     }
     
     .stButton > button:hover {
-        background: linear-gradient(45deg, #45a049 0%, #4CAF50 100%);
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
-    }
-    
-    /* Card styling */
-    .metric-card {
-        background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%);
-        padding: 1.5rem;
-        border-radius: 15px;
-        border: 1px solid rgba(76, 175, 80, 0.3);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-        margin: 1rem 0;
-    }
-    
-    /* Success message styling */
-    .stSuccess {
-        background: linear-gradient(90deg, #4CAF50 0%, #45a049 100%);
-        border-radius: 15px;
-        border: none;
-        box-shadow: 0 4px 20px rgba(76, 175, 80, 0.3);
-    }
-    
-    /* Info box styling */
-    .stInfo {
-        background: linear-gradient(90deg, #2196F3 0%, #1976D2 100%);
-        border-radius: 15px;
-        border: none;
-    }
-    
-    /* Warning styling */
-    .stWarning {
-        background: linear-gradient(90deg, #FF9800 0%, #F57C00 100%);
-        border-radius: 15px;
-        border: none;
-    }
-    
-    /* Hide streamlit elements */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    
-    /* Custom animations */
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    .fade-in {
-        animation: fadeIn 0.5s ease-in;
+        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Helper functions
+# ==============================================================================
+# Helper Functions
+# ==============================================================================
 @st.cache_data
+def load_dataset():
+    filepath = "fertilizer_recommendation_dataset.csv"
+    if os.path.exists(filepath):
+        return pd.read_csv(filepath)
+    return pd.DataFrame()
+
+@st.cache_resource
 def load_model_components():
-    """Load all model components with error handling"""
     try:
         model = pickle.load(open("Fertilizer_RF.pkl", "rb"))
         soil_encoder = pickle.load(open("soil_encoder.pkl", "rb"))
         crop_encoder = pickle.load(open("crop_encoder.pkl", "rb"))
         fertilizer_encoder = pickle.load(open("fertilizer_encoder.pkl", "rb"))
         
-        # Load scaler and metrics if available
         try:
             scaler = pickle.load(open("feature_scaler.pkl", "rb"))
             model_metrics = pickle.load(open("model_metrics.pkl", "rb"))
         except:
-            scaler = None
-            model_metrics = None
+            scaler, model_metrics = None, None
             
         return model, soil_encoder, crop_encoder, fertilizer_encoder, scaler, model_metrics
     except Exception as e:
-        st.error(f"❌ Error loading model components: {str(e)}")
         return None, None, None, None, None, None
 
-def validate_inputs(temp, humidity, moisture, nitrogen, potassium, phosphorous):
-    """Validate user inputs"""
-    errors = []
-    
-    if temp < 0 or temp > 60:
-        errors.append("⚠️ Temperature should be between 0°C and 60°C")
-    if humidity < 0 or humidity > 100:
-        errors.append("⚠️ Humidity should be between 0% and 100%")
-    if moisture < 0 or moisture > 100:
-        errors.append("⚠️ Soil moisture should be between 0% and 100%")
-    if nitrogen < 0 or nitrogen > 300:
-        errors.append("⚠️ Nitrogen should be between 0 and 300 mg/kg")
-    if potassium < 0 or potassium > 300:
-        errors.append("⚠️ Potassium should be between 0 and 300 mg/kg")
-    if phosphorous < 0 or phosphorous > 300:
-        errors.append("⚠️ Phosphorous should be between 0 and 300 mg/kg")
-        
-    return errors
-
-def get_fertilizer_info(fertilizer_name):
-    """Get detailed information about the recommended fertilizer"""
-    fertilizer_info = {
-        "Urea": {
-            "description": "High nitrogen content fertilizer (46% N)",
-            "benefits": ["Promotes leafy growth", "Improves protein content", "Quick nitrogen release"],
-            "best_for": ["Cereals", "Leafy vegetables", "Grass crops"],
-            "application_rate": "100-200 kg/ha",
-            "timing": "Pre-planting and top-dressing"
-        },
-        "DAP": {
-            "description": "Di-ammonium Phosphate (18% N, 46% P₂O₅)",
-            "benefits": ["Root development", "Early plant growth", "Flower and fruit formation"],
-            "best_for": ["All crops", "Especially during planting"],
-            "application_rate": "50-100 kg/ha",
-            "timing": "At planting time"
-        },
-        "14-35-14": {
-            "description": "NPK complex fertilizer (14% N, 35% P₂O₅, 14% K₂O)",
-            "benefits": ["Balanced nutrition", "Root development", "Overall plant health"],
-            "best_for": ["Fruit crops", "Vegetables", "Cash crops"],
-            "application_rate": "150-250 kg/ha",
-            "timing": "At planting and flowering"
-        },
-        "28-28": {
-            "description": "NPK fertilizer (28% N, 28% P₂O₅)",
-            "benefits": ["Balanced N-P nutrition", "Strong root system", "Healthy growth"],
-            "best_for": ["Field crops", "Vegetables"],
-            "application_rate": "100-150 kg/ha",
-            "timing": "At planting and vegetative stage"
-        },
-        "17-17-17": {
-            "description": "Balanced NPK fertilizer (17% each of N, P₂O₅, K₂O)",
-            "benefits": ["Complete balanced nutrition", "All-round growth", "Stress tolerance"],
-            "best_for": ["All crops", "General purpose"],
-            "application_rate": "150-200 kg/ha",
-            "timing": "Throughout growing season"
-        },
-        "20-20": {
-            "description": "NPK fertilizer (20% N, 20% P₂O₅)",
-            "benefits": ["Good N-P balance", "Vigorous growth", "High yield potential"],
-            "best_for": ["Cereals", "Pulses", "Oilseeds"],
-            "application_rate": "125-175 kg/ha",
-            "timing": "At sowing and top-dressing"
-        },
-        "10-26-26": {
-            "description": "NPK fertilizer (10% N, 26% P₂O₅, 26% K₂O)",
-            "benefits": ["High P-K content", "Root development", "Disease resistance"],
-            "best_for": ["Fruit crops", "Vegetables", "High K requirement crops"],
-            "application_rate": "100-200 kg/ha",
-            "timing": "At planting and fruit development"
-        }
+def get_crop_image(crop_name):
+    # Mapping real public URLs to crop types
+    image_map = {
+        "Wheat": "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=600&auto=format&fit=crop",
+        "Maize": "https://images.unsplash.com/photo-1582281295992-ccb1ef6dfcb5?w=600&auto=format&fit=crop",
+        "Cotton": "https://images.unsplash.com/photo-1596711585864-42f7c00eb13e?w=600&auto=format&fit=crop",
+        "Sugarcane": "https://images.unsplash.com/photo-1592398555981-d1c95eceec1f?w=600&auto=format&fit=crop",
+        "Tobacco": "https://images.unsplash.com/photo-1581451000806-05634063c1a2?w=600&auto=format&fit=crop",
+        "Paddy": "https://images.unsplash.com/photo-1586208006456-11f496735a12?w=600&auto=format&fit=crop",
+        "Barley": "https://images.unsplash.com/photo-1542385151-efd9000785a0?w=600&auto=format&fit=crop",
+        "Coffee": "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=600&auto=format&fit=crop",
+        "Mango": "https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?w=600&auto=format&fit=crop",
+        "Banana": "https://images.unsplash.com/photo-1528825871115-3581a5387919?w=600&auto=format&fit=crop",
+        "Tomato": "https://images.unsplash.com/photo-1592841200221-a6898f307baa?w=600&auto=format&fit=crop",
+        "Potato": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&auto=format&fit=crop",
+        "Apple": "https://images.unsplash.com/photo-1560806887-1e4cd0b6fac6?w=600&auto=format&fit=crop"
     }
     
-    return fertilizer_info.get(fertilizer_name, {
-        "description": "Specialized fertilizer blend",
-        "benefits": ["Optimized nutrition", "Improved yield", "Better quality"],
-        "best_for": ["As recommended for your specific crop"],
-        "application_rate": "As per soil test recommendations",
-        "timing": "As per crop growth stage"
-    })
+    # default farm picture if exact match not found
+    return image_map.get(crop_name, "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600&auto=format&fit=crop")
 
-# Load model components
-model, soil_encoder, crop_encoder, fertilizer_encoder, scaler, model_metrics = load_model_components()
+def get_fertilizer_details(name):
+    # Dictionary containing fertilizer properties
+    data = {
+        "Urea": {"desc": "High nitrogen (46-0-0) fertilizer.", "type": "Nitrogenous", "stage": "Top dressing"},
+        "DAP": {"desc": "Di-ammonium Phosphate (18-46-0).", "type": "Phosphatic", "stage": "Basal application"},
+        "14-35-14": {"desc": "Complex NPK blend.", "type": "Complex", "stage": "Pre-planting"},
+        "28-28": {"desc": "NP blend.", "type": "Complex NP", "stage": "Vegetative"},
+        "17-17-17": {"desc": "Balanced NPK.", "type": "Balanced", "stage": "All growth stages"},
+        "20-20": {"desc": "NP blend suited for cereals.", "type": "Complex NP", "stage": "Sowing"},
+        "10-26-26": {"desc": "PK heavy blend.", "type": "Complex PK", "stage": "Flowering / Fruit formation"}
+    }
+    return data.get(name, {"desc": "Custom formulation", "type": "Variable", "stage": "As needed"})
 
-if model is None:
-    st.error("❌ Failed to load model components. Please ensure all model files are present.")
-    st.stop()
+# ==============================================================================
+# APP STRUCTURE
+# ==============================================================================
 
 # Header
 st.markdown("""
-<div class="main-header fade-in">
-    <h1 class="main-title">🌾 KrushiAI</h1>
-    <p class="main-subtitle">Smart Fertilizer Recommendation System</p>
-    <p style="font-size: 0.9rem; opacity: 0.8;">Powered by Machine Learning • Optimized for Indian Agriculture</p>
+<div class="main-header">
+    <h1 class="main-title">🌾 KrushiAI Dashboard</h1>
+    <p class="main-subtitle">AI-Driven Fertilizer Recommendation & Crop Intelligence</p>
 </div>
 """, unsafe_allow_html=True)
 
-# Sidebar for inputs
-with st.sidebar:
-    st.markdown("### 🌱 Agricultural Input Parameters")
-    
-    # Environmental factors
-    st.markdown("#### 🌤️ Environmental Conditions")
-    temp = st.number_input(
-        "🌡️ Temperature (°C)", 
-        min_value=0.0, max_value=60.0, value=26.0, step=0.5,
-        help="Average temperature during crop growth period"
-    )
-    
-    humidity = st.number_input(
-        "💧 Humidity (%)", 
-        min_value=0.0, max_value=100.0, value=52.0, step=1.0,
-        help="Relative humidity percentage"
-    )
-    
-    moisture = st.number_input(
-        "🌿 Soil Moisture (%)", 
-        min_value=0.0, max_value=100.0, value=38.0, step=1.0,
-        help="Soil moisture content percentage"
-    )
-    
-    # Soil and crop selection
-    st.markdown("#### 🌱 Crop & Soil Information")
-    soil = st.selectbox(
-        "🟤 Soil Type", 
-        options=soil_encoder.classes_,
-        help="Select the predominant soil type in your field"
-    )
-    
-    crop = st.selectbox(
-        "🌾 Crop Type", 
-        options=crop_encoder.classes_,
-        help="Select the crop you want to grow"
-    )
-    
-    # Nutrient levels
-    st.markdown("#### 🧪 Soil Nutrient Levels (mg/kg)")
-    nitrogen = st.number_input(
-        "🔵 Nitrogen (N)", 
-        min_value=0.0, max_value=300.0, value=37.0, step=1.0,
-        help="Available nitrogen content in soil"
-    )
-    
-    potassium = st.number_input(
-        "🟡 Potassium (K)", 
-        min_value=0.0, max_value=300.0, value=0.0, step=1.0,
-        help="Available potassium content in soil"
-    )
-    
-    phosphorous = st.number_input(
-        "🔴 Phosphorous (P)", 
-        min_value=0.0, max_value=300.0, value=0.0, step=1.0,
-        help="Available phosphorous content in soil"
-    )
-    
-    st.markdown("---")
-    
-    # Predict button
-    predict_button = st.button(
-        "🔮 Get Fertilizer Recommendation", 
-        help="Click to get AI-powered fertilizer recommendation"
-    )
+# Load context
+model, soil_enc, crop_enc, fert_enc, scaler, metrics = load_model_components()
 
-# Main content area
-col1, col2 = st.columns([2, 1])
+if model is None:
+    st.error("❌ Crucial AI model files are missing. Have you executed `python train_fertilizer.py`?")
+    st.stop()
 
-with col1:
-    # Model information
-    if model_metrics:
-        st.markdown("### 📊 Model Performance")
-        metric_col1, metric_col2, metric_col3 = st.columns(3)
+# Build layout
+tab1, tab2, tab3 = st.tabs(["🔮 AI Prediction System", "📊 Database Explorer", "📚 Guide & Instructions"])
+
+# ----------------- TAB 1: PREDICTION -----------------
+with tab1:
+    col_input, col_result = st.columns([1, 1.3], gap="large")
+    
+    with col_input:
+        st.markdown("### 🌱 Provide Field Parameters")
+        st.info("Input real-time data from your soil tests and environment.")
         
-        with metric_col1:
-            st.metric(
-                "Model Accuracy", 
-                f"{model_metrics['accuracy']:.1%}",
-                help="Overall prediction accuracy on test data"
-            )
-        
-        with metric_col2:
-            st.metric(
-                "Cross-Validation Score", 
-                f"{model_metrics['cv_mean']:.1%}",
-                delta=f"±{model_metrics['cv_std']:.1%}",
-                help="Average accuracy across multiple validation folds"
-            )
+        with st.expander("🌡️ Environmental Conditions", expanded=True):
+            i_temp = st.slider("Temperature (°C)", min_value=0.0, max_value=60.0, value=25.0, step=0.5)
+            i_hum = st.slider("Humidity (%)", min_value=0.0, max_value=100.0, value=50.0, step=1.0)
+            i_moist = st.slider("Soil Moisture (%)", min_value=0.0, max_value=100.0, value=40.0, step=1.0)
             
-        with metric_col3:
-            st.metric(
-                "Training Samples", 
-                "1000+",
-                help="Number of samples used for training"
-            )
-    
-    # Prediction section
-    if predict_button:
-        # Validate inputs
-        validation_errors = validate_inputs(temp, humidity, moisture, nitrogen, potassium, phosphorous)
-        
-        if validation_errors:
-            for error in validation_errors:
-                st.warning(error)
-        else:
-            with st.spinner("🔍 Analyzing soil conditions and generating recommendation..."):
+        with st.expander("🧪 Soil Nutrients (mg/kg)", expanded=True):
+            i_n = st.number_input("Nitrogen (N) ", min_value=0.0, max_value=300.0, value=40.0, step=1.0)
+            i_p = st.number_input("Phosphorus (P) ", min_value=0.0, max_value=300.0, value=20.0, step=1.0)
+            i_k = st.number_input("Potassium (K) ", min_value=0.0, max_value=300.0, value=20.0, step=1.0)
+            
+        with st.expander("🌾 Crop & Soil Context", expanded=True):
+            i_soil = st.selectbox("Soil Type", options=soil_enc.classes_)
+            i_crop = st.selectbox("Intended Crop Target", options=crop_enc.classes_)
+
+        predict_btn = st.button("Generate Recommendation", use_container_width=True, type="primary")
+
+    with col_result:
+        # Before Predict - show metrics and image template
+        if not predict_btn:
+            st.markdown("### 📈 Model Health Check")
+            if metrics:
+                m1, m2 = st.columns(2)
+                m1.metric("Validation Accuracy", f"{metrics.get('accuracy', 0):.2%}")
+                m2.metric("Mean CV Score", f"{metrics.get('cv_mean', 0):.2%}")
+                
+            st.markdown("<br><br>", unsafe_allow_html=True)
+            st.info("👈 Enter the field parameters and generate an AI-powered recommendation.")
+            st.image("https://images.unsplash.com/photo-1628178652410-6ed6cebb8a81?w=800&auto=format&fit=crop", 
+                     caption="Optimizing agricultural output with Data Science", use_container_width=True)
+            
+        # On Predict
+        if predict_btn:
+            with st.spinner("Analyzing parameters through KrushiAI inference engine..."):
                 try:
                     # Encode categorical inputs
-                    soil_encoded = soil_encoder.transform([soil])[0]
-                    crop_encoded = crop_encoder.transform([crop])[0]
+                    s_encoded = soil_enc.transform([i_soil])[0]
+                    c_encoded = crop_enc.transform([i_crop])[0]
                     
-                    # Prepare features
-                    features = np.array([[temp, humidity, moisture, soil_encoded, crop_encoded,
-                                        nitrogen, potassium, phosphorous]])
+                    # Form feature matrix
+                    input_features = np.array([[i_temp, i_hum, i_moist, s_encoded, c_encoded, i_n, i_k, i_p]])
                     
-                    # Scale features if scaler is available
                     if scaler:
-                        features = scaler.transform(features)
+                        input_features = scaler.transform(input_features)
                     
-                    # Make prediction
-                    pred = model.predict(features)[0]
-                    fertilizer_name = fertilizer_encoder.inverse_transform([pred])[0]
+                    # Inference
+                    prediction_encoded = model.predict(input_features)[0]
+                    fert_name = fert_enc.inverse_transform([prediction_encoded])[0]
+                    confidence = np.max(model.predict_proba(input_features)[0])
                     
-                    # Get prediction probability
-                    pred_proba = model.predict_proba(features)[0]
-                    confidence = np.max(pred_proba) * 100
+                    # Output Render
+                    st.success(f"### 🏆 Recommended Fertilizer: {fert_name}")
                     
-                    # Display results
-                    st.markdown("### 🎯 Recommendation Results")
+                    sc1, sc2 = st.columns(2)
+                    sc1.metric("Confidence Level", f"{confidence:.1%}")
                     
-                    # Main recommendation
-                    st.success(f"🏆 **Recommended Fertilizer: {fertilizer_name}**")
-                    st.info(f"🎯 **Confidence Score: {confidence:.1f}%**")
+                    # Fertilizer specific info
+                    details = get_fertilizer_details(fert_name)
+                    st.markdown("---")
                     
-                    # Detailed fertilizer information
-                    fert_info = get_fertilizer_info(fertilizer_name)
-                    
-                    st.markdown("#### 📋 Fertilizer Details")
-                    
-                    col_info1, col_info2 = st.columns(2)
-                    
-                    with col_info1:
-                        st.markdown(f"**Description:** {fert_info['description']}")
-                        st.markdown(f"**Application Rate:** {fert_info['application_rate']}")
-                        st.markdown(f"**Best Timing:** {fert_info['timing']}")
-                    
-                    with col_info2:
-                        st.markdown("**Key Benefits:**")
-                        for benefit in fert_info['benefits']:
-                            st.markdown(f"• {benefit}")
-                        
-                        st.markdown("**Best For:**")
-                        for crop_type in fert_info['best_for']:
-                            st.markdown(f"• {crop_type}")
-                    
-                    # Additional recommendations
-                    st.markdown("#### 💡 Additional Tips")
-                    
-                    tip_col1, tip_col2 = st.columns(2)
-                    
-                    with tip_col1:
-                        st.info("""
-                        **🌱 Application Guidelines:**
-                        • Conduct soil test before application
-                        • Apply during optimal weather conditions
-                        • Follow recommended dosage
-                        • Split application for better efficiency
-                        """)
-                    
-                    with tip_col2:
-                        st.warning("""
-                        **⚠️ Important Notes:**
-                        • Store fertilizer in dry place
-                        • Avoid over-application
-                        • Monitor plant response
-                        • Consult local agricultural expert
-                        """)
-                    
-                    # Save prediction history (optional)
-                    prediction_data = {
-                        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        'temperature': temp,
-                        'humidity': humidity,
-                        'moisture': moisture,
-                        'soil_type': soil,
-                        'crop_type': crop,
-                        'nitrogen': nitrogen,
-                        'potassium': potassium,
-                        'phosphorous': phosphorous,
-                        'recommended_fertilizer': fertilizer_name,
-                        'confidence': confidence
-                    }
-                    
+                    d_col1, d_col2 = st.columns([1, 1])
+                    with d_col1:
+                        st.markdown(f"**Description:** {details['desc']}")
+                        st.markdown(f"**Classification:** {details['type']}")
+                        st.markdown(f"**Ideal Stage:** {details['stage']}")
+                    with d_col2:
+                         st.image(get_crop_image(i_crop), caption=f"Recommended for {i_crop}", use_container_width=True)
+                         
+                    st.warning("⚠️ Always perform localized soil validation testing periodically to tune actual application volumes. This is an algorithmic recommendation based on normalized datasets.")
+
                 except Exception as e:
-                    st.error(f"❌ Error making prediction: {str(e)}")
-                    st.info("Please check your inputs and try again.")
+                    st.error(f"Prediction failed due to internal formatting error: {str(e)}")
 
-with col2:
-    # Information panel
-    st.markdown("### 📚 Quick Guide")
+
+# ----------------- TAB 2: DATASET EXPLORER -----------------
+with tab2:
+    st.markdown("### 📊 Database Explorer")
+    st.write("Browse and analyze the historical agronomy data used to train the KrushiAI model.")
     
+    df = load_dataset()
+    if not df.empty:
+        st.dataframe(
+            df.style.background_gradient(cmap='Greens', subset=['Temperature', 'Humidity', 'Moisture', 'Nitrogen', 'Phosphorous', 'Potassium']),
+            use_container_width=True,
+            height=500
+        )
+        st.caption(f"Total verified data records: {len(df)}")
+    else:
+        st.warning("No dataset located. Please ensure `fertilizer_recommendation_dataset.csv` exists.")
+
+
+# ----------------- TAB 3: GUIDE & INSTRUCTIONS -----------------
+with tab3:
+    st.markdown("### 📚 Agronomy Intelligence Guide")
     st.markdown("""
-    **🌾 How to Use:**
-    1. Enter environmental conditions
-    2. Select your soil and crop type
-    3. Input current nutrient levels
-    4. Click 'Get Recommendation'
+    **Core Philosophy:**
+    Fertilizers are not universal. Balancing N-P-K (Nitrogen, Phosphorus, Potassium) directly impacts yield, resistance, and soil longevity.
     
-    **🎯 Accuracy Note:**
-    Our AI model is trained on extensive agricultural data and provides recommendations based on scientific principles.
+    * **Nitrogen (N):** Essential for vegetative, leafy growth. High N fertilizers like Urea are critical during initial shoot development.
+    * **Phosphorus (P):** Crucial for deep robust root systems and high-quality flower/seed formation. Required early in crop lifecycle (e.g. DAP).
+    * **Potassium (K):** Strengthens stems, boosts water regulation mechanisms, and fortifies crops against disease and harsh conditions.
     
-    **📞 Need Help?**
-    Consult with local agricultural experts for best results.
+    **Using the System:**
+    1. Determine parameters locally via modern soil tests (or pH/N-P-K probes).
+    2. Supply the accurate moisture, humidity, and atmospheric temperature.
+    3. Ensure intended crop type aligns with regional viability.
+    4. KrushiAI executes Random Forest inference mapping localized features to the optimal industrial mixture.
     """)
-    
-    # Nutrient guide
-    with st.expander("🧪 Nutrient Guide", expanded=False):
-        st.markdown("""
-        **Nitrogen (N):**
-        - Promotes leaf growth
-        - Essential for protein synthesis
-        - Deficiency: Yellowing leaves
-        
-        **Phosphorous (P):**
-        - Root development
-        - Flower and fruit formation
-        - Deficiency: Purple leaves
-        
-        **Potassium (K):**
-        - Disease resistance
-        - Water regulation
-        - Deficiency: Brown leaf edges
-        """)
-    
-    # Soil type guide
-    with st.expander("🌍 Soil Types", expanded=False):
-        st.markdown("""
-        **Sandy Soil:**
-        - Good drainage
-        - Quick nutrient loss
-        - Frequent fertilization needed
-        
-        **Clay Soil:**
-        - Poor drainage
-        - High nutrient retention
-        - Less frequent fertilization
-        
-        **Loamy Soil:**
-        - Best for most crops
-        - Balanced properties
-        - Moderate fertilization
-        
-        **Black/Red Soil:**
-        - Rich in specific minerals
-        - Region-specific properties
-        - Varied fertilization needs
-        """)
-
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style="text-align: center; opacity: 0.7; margin-top: 2rem;">
-    <p>🌾 KrushiAI - Smart Fertilizer Recommendation System</p>
-    <p>Empowering Farmers with AI-Driven Agricultural Intelligence</p>
-</div>
-""", unsafe_allow_html=True)
